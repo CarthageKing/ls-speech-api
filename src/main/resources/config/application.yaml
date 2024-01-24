@@ -1,0 +1,5 @@
+logging:
+  level:
+    '[com.ls.tc.speech]': ${SPEECH_APP_LOG_LEVEL:TRACE}
+    #'[com.zaxxer.hikari.HikariConfig]': ${HIKARI_CONFIG_LOGLEVEL:DEBUG}
+    #'[com.zaxxer.hikari]': ${HIKARI_LOGLEVEL:TRACE}
