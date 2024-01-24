@@ -3,3 +3,22 @@ logging:
     '[com.ls.tc.speech]': ${SPEECH_APP_LOG_LEVEL:TRACE}
     #'[com.zaxxer.hikari.HikariConfig]': ${HIKARI_CONFIG_LOGLEVEL:DEBUG}
     #'[com.zaxxer.hikari]': ${HIKARI_LOGLEVEL:TRACE}
+
+
+server:
+  port: ${SPEECH_APP_SERVER_PORT:9091}
+
+
+spring:
+  datasource:
+    url: ${SPEECH_APP_DB_URL:}
+    driver-class-name: org.h2.Driver
+    username: ${SPEECH_APP_DB_USERNAME:sa}
+    password: ${SPEECH_APP_DB_PASSWORD:}
+  jpa:
+    show-sql: ${HIBERNATE_SHOW_SQL:true}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        '[default_schema]': speech_api
+        '[format_sql]': ${HIBERNATE_FORMAT_SQL:true}
