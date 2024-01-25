@@ -188,7 +188,7 @@ curl --location 'http://localhost:9091/speeches/_search?dateRangeFrom=2000-01-01
 - Attempted to use Hibernate's `@OneToMany` and `@ManyToOne` annotations to express relationships between the different entities and let Hibernate cascade the updates/deletes/etc. Issues were encountered that resulted in just decoupling the entities and handling the create/update/delete cascade logic in the application. Issues were:
   - Unpredictability in the amount and number of SQL statements generated and executed. That approach was generating more SQL that the current approach
   - Generation of random foreign key name and no easy way to override it
-- Unfamiliarity with `mapstruct` led to sparse use in the code for just the sipmlest of mappings (i.e. speech to speech entity and vice versa)
+- Unfamiliarity with `mapstruct` led to sparse use in the code for just the simplest of mappings (i.e. speech to speech entity and vice versa)
 - During requirements gathering, it was mentioned that there was no limit to the lengths of the  author names, keywords and speech data. Initially, this was modeled as `clob` columns in H2. However, issues encountered in using these columns arose which resulted in the current implementation imposing a limit to the lengths of these columns in such a way that Hibernate wouldn't convert them to `clob` columns. The issues were:
   - Cannot do a `lower()` function against the `clob` columns, necessary for doing the case-insensitive search
   - Cannot make `clob` columns part of the primary key
