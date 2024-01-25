@@ -1,1 +1,1 @@
-CREATE SCHEMA speech_api;
+CREATE SCHEMA if not exists speech_api;

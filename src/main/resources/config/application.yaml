@@ -10,13 +10,21 @@ server:
 
 
 spring:
+  sql:
+    init:
+      # https://howtodoinjava.com/spring-boot/execute-sql-scripts-on-startup/#4-load-multiple-sql-files-using-properties-configuration
+      schema-locations: ${SPEECH_APP_SCHEMA_LOCATIONS:}
+      mode: ${SPRING_SQL_INIT_MODE:embedded}
   datasource:
     url: ${SPEECH_APP_DB_URL:}
     driver-class-name: org.h2.Driver
     username: ${SPEECH_APP_DB_USERNAME:sa}
     password: ${SPEECH_APP_DB_PASSWORD:}
   jpa:
+    open-in-view: false
     show-sql: ${HIBERNATE_SHOW_SQL:true}
+    hibernate:
+      ddl-auto: ${HIBERNATE_DDL_AUTO:create-drop}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
