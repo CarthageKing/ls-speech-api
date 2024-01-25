@@ -4,6 +4,7 @@ import java.sql.Date;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -20,10 +21,15 @@ import com.ls.tc.speech.dao.entity.SpeechEntity;
 import com.ls.tc.speech.dao.entity.SpeechKeywordEntity;
 import com.ls.tc.speech.dao.entity.SpeechKeywordEntity.SpeechKeywordEntityPK;
 import com.ls.tc.speech.exception.SpeechAppRecordNotFoundException;
+import com.ls.tc.speech.exception.SpeechAppValidationFailedException;
 import com.ls.tc.speech.util.SpeechSpeechEntityMapper;
+import com.ls.tc.speech.validation.CreateSpeechValidationGroup;
+import com.ls.tc.speech.validation.PartialUpdateSpeechValidationGroup;
 
 import jakarta.annotation.Resource;
 import jakarta.transaction.Transactional;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 
 @Service
 @Transactional
@@ -41,11 +47,19 @@ public class SpeechService {
 	@Resource
 	private SpeechKeywordEntityDao speechKeywordDao;
 
+	@Resource
+	private Validator validator;
+
 	public SpeechService() {
 		// noop
 	}
 
 	public Speech createSpeech(Speech speech) {
+		Set<ConstraintViolation<Speech>> errors = validator.validate(speech, CreateSpeechValidationGroup.class);
+		if (!CollectionUtils.isEmpty(errors)) {
+			throw new SpeechAppValidationFailedException(errors);
+		}
+
 		SpeechEntity spEnt = new SpeechEntity();
 		mapToSpeechEntity(speech, spEnt);
 		spEnt = speechDao.save(spEnt);
@@ -134,6 +148,11 @@ public class SpeechService {
 	}
 
 	public Speech partialUpdateSpeech(String id, Speech speech) {
+		Set<ConstraintViolation<Speech>> errors = validator.validate(speech, PartialUpdateSpeechValidationGroup.class);
+		if (!CollectionUtils.isEmpty(errors)) {
+			throw new SpeechAppValidationFailedException(errors);
+		}
+
 		Optional<SpeechEntity> spEntOpt = speechDao.findById(id);
 		if (spEntOpt.isEmpty()) {
 			throw new SpeechAppRecordNotFoundException("Cannot find speech with that id");

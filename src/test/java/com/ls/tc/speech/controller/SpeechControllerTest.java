@@ -3,6 +3,8 @@ package com.ls.tc.speech.controller;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
+import java.util.function.Function;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -27,15 +29,19 @@ import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.ls.tc.speech.config.CommonConfig;
 import com.ls.tc.speech.config.TestDbConfig;
 import com.ls.tc.speech.config.TestSpringConfig;
 import com.ls.tc.speech.controller.model.CreateGetUpdateDeleteOneSpeechResponse;
+import com.ls.tc.speech.controller.model.ErrorList;
+import com.ls.tc.speech.controller.model.ErrorListResponse;
 import com.ls.tc.speech.controller.model.GenericResponse;
 import com.ls.tc.speech.controller.model.SearchSpeechResponse;
 import com.ls.tc.speech.controller.model.Speech;
 import com.ls.tc.speech.service.DbHelper;
+import com.ls.tc.speech.util.SpeechAppConstants;
 
 import jakarta.annotation.Resource;
 
@@ -245,6 +251,24 @@ class SpeechControllerTest {
 			spForDelete = speech;
 		}
 
+		// modify multiple things
+		{
+			Speech updSpeech = new Speech();
+			updSpeech.setSpeechText("the quick black bear");
+			updSpeech.getAuthors().addAll(Arrays.asList("nobraon"));
+			updSpeech.getKeywords().addAll(Arrays.asList("sameson"));
+			CreateGetUpdateDeleteOneSpeechResponse rspObj = partialUpdateSpeech(spForDelete.getId(), updSpeech);
+			Assertions.assertEquals(String.valueOf(HttpStatus.OK.value()), rspObj.getHeader().getStatusCode());
+			Assertions.assertEquals(false, rspObj.getHeader().getStatusMessage().isEmpty());
+			Speech speech = rspObj.getData();
+			Assertions.assertEquals(spForDelete.getId(), speech.getId());
+			Assertions.assertEquals(spForDelete.getSpeechDate(), speech.getSpeechDate());
+			Assertions.assertNotEquals(spForDelete.getSpeechText(), speech.getSpeechText());
+			Assertions.assertNotEquals(spForDelete.getAuthors(), speech.getAuthors());
+			Assertions.assertNotEquals(spForDelete.getKeywords(), speech.getKeywords());
+			spForDelete = speech;
+		}
+
 		Assertions.assertEquals(2, countSpeechRecords());
 
 		// delete the speech
@@ -424,6 +448,264 @@ class SpeechControllerTest {
 		}
 	}
 
+	@Test
+	void test_createSpeech_validationErrors() throws Exception {
+		// create a completely empty object
+		{
+			ErrorList errlst = invokeExpectingHttpClientError(() -> createSpeech(s -> "{}"));
+			Assertions.assertEquals(4, errlst.getErrorMessages().size());
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'speechDate' must not be null"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'speechText' must not be blank"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'authors' must not be empty"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'keywords' must not be empty"));
+		}
+		// it contains the properties but they have explicitly been set to null
+		{
+			ErrorList errlst = invokeExpectingHttpClientError(() -> createSpeech(s -> "{\n"
+				+ "  \"id\": null,\n"
+				+ "  \"speechDate\": null,\n"
+				+ "  \"speechText\": null,\n"
+				+ "  \"authors\": null,\n"
+				+ "  \"keywords\": null\n"
+				+ "}"));
+			Assertions.assertEquals(4, errlst.getErrorMessages().size());
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'speechDate' must not be null"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'speechText' must not be blank"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'authors' must not be empty"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'keywords' must not be empty"));
+		}
+		// blank strings and empty arrays not allowed
+		{
+			ErrorList errlst = invokeExpectingHttpClientError(() -> createSpeech(s -> "{\n"
+				+ "  \"id\": null,\n"
+				+ "  \"speechDate\": \"2012-04-05\",\n"
+				+ "  \"speechText\": \"   \",\n"
+				+ "  \"authors\": [],\n"
+				+ "  \"keywords\": []\n"
+				+ "}"));
+			Assertions.assertEquals(3, errlst.getErrorMessages().size());
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'speechText' must not be blank"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'authors' must not be empty"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'keywords' must not be empty"));
+		}
+		// speechDate parsing is strict
+		try {
+			invokeExpectingHttpClientError(() -> createSpeech(s -> "{\n"
+				+ "  \"id\": null,\n"
+				+ "  \"speechDate\": \"2013-02-29\",\n" // not a leap year
+				+ "  \"speechText\": \"   \",\n"
+				+ "  \"authors\": [],\n"
+				+ "  \"keywords\": []\n"
+				+ "}"));
+			Assertions.fail("did not throw expected exception");
+		} catch (UnrecognizedPropertyException e) {
+			// TODO: This is not the behavior we want. Behavior should be consistent across all the fields. Figure this out
+			Assertions.assertEquals(true, e.getMessage().contains("Unrecognized field"));
+		}
+		try {
+			invokeExpectingHttpClientError(() -> createSpeech(s -> "{\n"
+				+ "  \"id\": null,\n"
+				+ "  \"speechDate\": \"2013-01-32\",\n" // invalid and should not spill over (i.e. be converted to 2013-02-01)
+				+ "  \"speechText\": \"   \",\n"
+				+ "  \"authors\": [],\n"
+				+ "  \"keywords\": []\n"
+				+ "}"));
+			Assertions.fail("did not throw expected exception");
+		} catch (UnrecognizedPropertyException e) {
+			// TODO: This is not the behavior we want. Behavior should be consistent across all the fields. Figure this out
+			Assertions.assertEquals(true, e.getMessage().contains("Unrecognized field"));
+		}
+		// don't allow explicit nulls as well as blanks inside the arrays
+		{
+			ErrorList errlst = invokeExpectingHttpClientError(() -> createSpeech(s -> "{\n"
+				+ "  \"id\": null,\n"
+				+ "  \"speechDate\": \"2012-04-05\",\n"
+				+ "  \"speechText\": \"jacobson blah\",\n"
+				+ "  \"authors\": [\"authorb\", null, \"authora\", \"\"],\n"
+				+ "  \"keywords\": [\"   \", \"   stone\", null]\n"
+				+ "}"));
+			Assertions.assertEquals(4, errlst.getErrorMessages().size());
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'authors' entry at index 1 must not be null or completely blank"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'authors' entry at index 3 must not be null or completely blank"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'keywords' entry at index 0 must not be null or completely blank"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'keywords' entry at index 2 must not be null or completely blank"));
+		}
+		// checking of string length limits
+		{
+			ErrorList errlst = invokeExpectingHttpClientError(() -> createSpeech(s -> "{\n"
+				+ "  \"id\": \"" + generateStringOfLength(SpeechAppConstants.SPEECH_ENTITY_ID_MAX_LENGTH + 1) + "\",\n"
+				+ "  \"speechDate\": \"2005-08-09\",\n"
+				+ "  \"speechText\": \"" + generateStringOfLength(SpeechAppConstants.SPEECH_TEXT_MAX_LENGTH + 1) + "\",\n"
+				+ "  \"authors\": [\n"
+				+ "    \"" + generateStringOfLength(SpeechAppConstants.SPEECH_AUTHOR_MAX_LENGTH + 1) + "\"\n"
+				+ "  ],\n"
+				+ "  \"keywords\": [\n"
+				+ "    \"" + generateStringOfLength(SpeechAppConstants.SPEECH_KEYWORD_MAX_LENGTH + 1) + "\"\n"
+				+ "  ]\n"
+				+ "}"));
+			Assertions.assertEquals(4, errlst.getErrorMessages().size());
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'keywords' entry at index 0 must have maximum length of 1024"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'speechText' size must be between 0 and 1048576"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'id' size must be between 0 and 64"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'authors' entry at index 0 must have maximum length of 1024"));
+		}
+	}
+
+	@Test
+	void test_partialUpdateSpeech_validationErrors() throws Exception {
+		Speech sp01 = createSpeech(LocalDate.of(2011, 12, 13),
+			// authors
+			Arrays.asList("Boston Journal", "Linda Johnson"),
+			// keywords
+			Arrays.asList("fox", "lazy dog"),
+			"The quick brown fox jumps over the lazy dog.");
+
+		// below won't update anything if nothing is indicated for update
+		{
+			CreateGetUpdateDeleteOneSpeechResponse rspObj = partialUpdateSpeech(sp01.getId(), "{}");
+			Assertions.assertEquals(String.valueOf(HttpStatus.OK.value()), rspObj.getHeader().getStatusCode());
+			Assertions.assertEquals(false, rspObj.getHeader().getStatusMessage().isEmpty());
+			Speech speech = rspObj.getData();
+			Assertions.assertEquals(sp01.getId(), speech.getId());
+			Assertions.assertEquals(sp01.getSpeechDate(), speech.getSpeechDate());
+			Assertions.assertEquals(sp01.getSpeechText(), speech.getSpeechText());
+			Assertions.assertEquals(sp01.getAuthors(), speech.getAuthors());
+			Assertions.assertEquals(sp01.getKeywords(), speech.getKeywords());
+			sp01 = speech;
+		}
+		// id cannot be updated
+		{
+			CreateGetUpdateDeleteOneSpeechResponse rspObj = partialUpdateSpeech(sp01.getId(), "{\n"
+				+ "  \"id\": \"sfd34\""
+				+ "}");
+			Assertions.assertEquals(String.valueOf(HttpStatus.OK.value()), rspObj.getHeader().getStatusCode());
+			Assertions.assertEquals(false, rspObj.getHeader().getStatusMessage().isEmpty());
+			Speech speech = rspObj.getData();
+			Assertions.assertEquals(sp01.getId(), speech.getId());
+			Assertions.assertEquals(sp01.getSpeechDate(), speech.getSpeechDate());
+			Assertions.assertEquals(sp01.getSpeechText(), speech.getSpeechText());
+			Assertions.assertEquals(sp01.getAuthors(), speech.getAuthors());
+			Assertions.assertEquals(sp01.getKeywords(), speech.getKeywords());
+			sp01 = speech;
+		}
+		// id is ignored for updates, but still checked for validation
+		{
+			Speech[] fixer = { sp01 };
+			ErrorList errlst = invokeExpectingHttpClientError(() -> partialUpdateSpeech(fixer[0].getId(), "{\n"
+				+ "  \"id\": \"" + generateStringOfLength(SpeechAppConstants.SPEECH_ENTITY_ID_MAX_LENGTH + 1) + "\""
+				+ "}"));
+			Assertions.assertEquals(1, errlst.getErrorMessages().size());
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'id' size must be between 0 and 64"));
+		}
+		// speechDate parsing is strict
+		try {
+			Speech[] fixer = { sp01 };
+			invokeExpectingHttpClientError(() -> partialUpdateSpeech(fixer[0].getId(), "{\n"
+				+ "  \"speechDate\": \"2013-02-29\"" // not a leap year
+				+ "}"));
+			Assertions.fail("did not throw expected exception");
+		} catch (UnrecognizedPropertyException e) {
+			// TODO: This is not the behavior we want. Behavior should be consistent across all the fields. Figure this out
+			Assertions.assertEquals(true, e.getMessage().contains("Unrecognized field"));
+		}
+		try {
+			Speech[] fixer = { sp01 };
+			invokeExpectingHttpClientError(() -> partialUpdateSpeech(fixer[0].getId(), "{\n"
+				+ "  \"speechDate\": \"2013-01-32\"" // invalid and should not spill over (i.e. be converted to 2013-02-01)
+				+ "}"));
+			Assertions.fail("did not throw expected exception");
+		} catch (UnrecognizedPropertyException e) {
+			// TODO: This is not the behavior we want. Behavior should be consistent across all the fields. Figure this out
+			Assertions.assertEquals(true, e.getMessage().contains("Unrecognized field"));
+		}
+		// checking speechText length limits
+		{
+			Speech[] fixer = { sp01 };
+			ErrorList errlst = invokeExpectingHttpClientError(() -> partialUpdateSpeech(fixer[0].getId(), "{\n"
+				+ "    \"speechText\": \"" + generateStringOfLength(SpeechAppConstants.SPEECH_TEXT_MAX_LENGTH + 1) + "\""
+				+ "}"));
+			Assertions.assertEquals(1, errlst.getErrorMessages().size());
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'speechText' size must be between 0 and 1048576"));
+		}
+		// authors checks
+		{
+			Speech[] fixer = { sp01 };
+			ErrorList errlst = invokeExpectingHttpClientError(() -> partialUpdateSpeech(fixer[0].getId(), "{\n"
+				+ "  \"authors\": [\"authorb\", null, \"authora\", \"\",\"" + generateStringOfLength(SpeechAppConstants.SPEECH_AUTHOR_MAX_LENGTH + 1) + "\"]\n"
+				+ "}"));
+			Assertions.assertEquals(3, errlst.getErrorMessages().size());
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'authors' entry at index 1 must not be null or completely blank"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'authors' entry at index 3 must not be null or completely blank"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'authors' entry at index 4 must have maximum length of 1024"));
+		}
+		// keywords checks
+		{
+			Speech[] fixer = { sp01 };
+			ErrorList errlst = invokeExpectingHttpClientError(() -> partialUpdateSpeech(fixer[0].getId(), "{\n"
+				+ "  \"keywords\": [\"   \", \"   stone\", null,\"" + generateStringOfLength(SpeechAppConstants.SPEECH_KEYWORD_MAX_LENGTH + 1) + "\"]\n"
+				+ "}"));
+			Assertions.assertEquals(3, errlst.getErrorMessages().size());
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'keywords' entry at index 0 must not be null or completely blank"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'keywords' entry at index 3 must have maximum length of 1024"));
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'keywords' entry at index 2 must not be null or completely blank"));
+		}
+	}
+
+	@Test
+	void test_searchSpeechByGet_validationErrors() throws Exception {
+		// dates are strictly parsed
+		{
+			ErrorList errlst = invokeExpectingHttpClientError(() -> searchSpeechByGet(baseUrl + "/speeches/_search?dateRangeFrom=2013-02-29"));
+			Assertions.assertEquals(1, errlst.getErrorMessages().size());
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'dateRangeFrom' not a valid date"));
+		}
+		{
+			ErrorList errlst = invokeExpectingHttpClientError(() -> searchSpeechByGet(baseUrl + "/speeches/_search?dateRangeTo=2005-09-31"));
+			Assertions.assertEquals(1, errlst.getErrorMessages().size());
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'dateRangeTo' not a valid date"));
+		}
+		// from should be equal or lesser than to
+		{
+			ErrorList errlst = invokeExpectingHttpClientError(() -> searchSpeechByGet(baseUrl + "/speeches/_search?dateRangeFrom=2005-09-30&dateRangeTo=2005-09-13"));
+			Assertions.assertEquals(1, errlst.getErrorMessages().size());
+			Assertions.assertEquals(true, containsErrorMessage(errlst.getErrorMessages(), "'dateRangeFrom' must be equal or less than 'dateRangeTo'"));
+		}
+	}
+
+	private String generateStringOfLength(int length) {
+		StringBuilder sb = new StringBuilder();
+		String chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+		Random r = new Random();
+		for (int i = 0; i < length; i++) {
+			sb.append(chars.charAt(r.nextInt(chars.length())));
+		}
+		return sb.toString();
+	}
+
+	private boolean containsErrorMessage(List<String> errorMessages, String str) {
+		for (String err : errorMessages) {
+			if (err.contains(str)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private ErrorList invokeExpectingHttpClientError(MyFunc func) throws Exception {
+		try {
+			func.doIt();
+			Assertions.fail("did not throw expected exception");
+			return null;
+		} catch (HttpClientErrorException e) {
+			LOG.trace("the error response: {}", e.getResponseBodyAsString());
+			Assertions.assertEquals(HttpStatus.BAD_REQUEST, e.getStatusCode());
+			ErrorListResponse rspObj = OBJECT_MAPPER.readValue(e.getResponseBodyAsString(), ErrorListResponse.class);
+			Assertions.assertEquals(String.valueOf(HttpStatus.BAD_REQUEST.value()), rspObj.getHeader().getStatusCode());
+			Assertions.assertEquals(true, rspObj.getHeader().getStatusMessage().contains("Validation failure"));
+			return rspObj.getData();
+		}
+	}
+
 	private SearchSpeechResponse searchSpeechByGet(String requestUriStr) throws JsonProcessingException, JsonMappingException {
 		String content = null;
 		LOG.trace("the request: {}", content);
@@ -480,16 +762,29 @@ class SpeechControllerTest {
 	}
 
 	private Speech createSpeech(LocalDate speechDate, List<String> authors, List<String> keywords, String speechText) throws Exception {
-		String requestUriStr = baseUrl + "/speeches/o";
-		String content = null;
-		{
+		Speech retSpeech = createSpeech(s -> {
 			Speech speech = new Speech();
 			speech.setSpeechDate(speechDate);
 			speech.setSpeechText(speechText);
 			speech.getAuthors().addAll(authors);
 			speech.getKeywords().addAll(keywords);
-			content = OBJECT_MAPPER.writeValueAsString(speech);
-		}
+			try {
+				return OBJECT_MAPPER.writeValueAsString(speech);
+			} catch (JsonProcessingException e) {
+				throw new RuntimeException(e);
+			}
+		});
+		Assertions.assertNotNull(retSpeech.getId());
+		Assertions.assertEquals(speechDate, retSpeech.getSpeechDate());
+		Assertions.assertEquals(speechText, retSpeech.getSpeechText());
+		Assertions.assertEquals(authors, retSpeech.getAuthors());
+		Assertions.assertEquals(keywords, retSpeech.getKeywords());
+		return retSpeech;
+	}
+
+	private Speech createSpeech(Function<Void, String> contentCreator) throws Exception {
+		String requestUriStr = baseUrl + "/speeches/o";
+		String content = contentCreator.apply(null);
 		LOG.trace("the request: {}", content);
 		HttpHeaders hdrs = new HttpHeaders();
 		hdrs.set(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
@@ -502,18 +797,17 @@ class SpeechControllerTest {
 		Assertions.assertEquals(String.valueOf(HttpStatus.CREATED.value()), rspObj.getHeader().getStatusCode());
 		Assertions.assertEquals(false, rspObj.getHeader().getStatusMessage().isEmpty());
 		Speech speech = rspObj.getData();
-		Assertions.assertNotNull(speech.getId());
-		Assertions.assertEquals(speechDate, speech.getSpeechDate());
-		Assertions.assertEquals(speechText, speech.getSpeechText());
-		Assertions.assertEquals(authors, speech.getAuthors());
-		Assertions.assertEquals(keywords, speech.getKeywords());
 
 		return speech;
 	}
 
 	private CreateGetUpdateDeleteOneSpeechResponse partialUpdateSpeech(String speechId, Speech updatedSpeech) throws Exception {
+		return partialUpdateSpeech(speechId, OBJECT_MAPPER.writeValueAsString(updatedSpeech));
+	}
+
+	private CreateGetUpdateDeleteOneSpeechResponse partialUpdateSpeech(String speechId, String speechJsonContent) throws Exception {
 		String requestUriStr = baseUrl + "/speeches/o/" + speechId;
-		String content = OBJECT_MAPPER.writeValueAsString(updatedSpeech);
+		String content = speechJsonContent;
 		LOG.trace("the request: {}", content);
 		HttpHeaders hdrs = new HttpHeaders();
 		hdrs.set(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
@@ -524,5 +818,10 @@ class SpeechControllerTest {
 		Assertions.assertEquals(HttpStatus.OK, httpRsp.getStatusCode());
 		CreateGetUpdateDeleteOneSpeechResponse rspObj = OBJECT_MAPPER.readValue(httpRsp.getBody(), CreateGetUpdateDeleteOneSpeechResponse.class);
 		return rspObj;
+	}
+
+	@FunctionalInterface
+	public interface MyFunc {
+		void doIt() throws Exception;
 	}
 }
