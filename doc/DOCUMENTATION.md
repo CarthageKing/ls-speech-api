@@ -86,6 +86,95 @@ Example Successful Response:
 }
 ```
 
+### Delete Speech By ID
+
+Deletes the speech record with the given ID. The deleted record is returned in the response.
+
+Request:
+```sh
+curl --location --request DELETE 'http://localhost:9091/speeches/o/fdbde203-1e09-4f49-b2fd-58d6726f1d2b'
+```
+Example Successful Response:
+```json
+{
+    "header": {
+        "statusCode": "200",
+        "statusMessage": "Speech was deleted"
+    },
+    "data": {
+        "id": "fdbde203-1e09-4f49-b2fd-58d6726f1d2b",
+        "speechDate": "2011-12-13",
+        ... other details ...
+    }
+}
+```
+
+### Partial Update of Speech
+
+Do updates on portions (or all except ID) of the speech record. The fully updated record is returned in the response.
+
+Request (only updates the `speechDate` property):
+```sh
+curl --location --request PATCH 'http://localhost:9091/speeches/o/5cd1964d-29f5-43d6-913b-821b9f14b7a9' \
+--header 'Content-Type: application/json' \
+--data '{
+	"speechDate": "2001-12-13"
+}'
+```
+Example Successful Response:
+```json
+{
+    "header": {
+        "statusCode": "200",
+        "statusMessage": "Speech was updated"
+    },
+    "data": {
+        "id": "5cd1964d-29f5-43d6-913b-821b9f14b7a9",
+        "speechDate": "2001-12-13",
+        ... other details ...
+    }
+}
+```
+
+### Speech Search API
+
+Search for speeches matching the given set of criteria. If no criteria provided, returns everything. The results are not paginated.
+
+Basic Request (returns all):
+```sh
+curl --location 'http://localhost:9091/speeches/_search'
+```
+Example Successful Response:
+```json
+{
+    "header": {
+        "statusCode": "200",
+        "statusMessage": "Operation successful"
+    },
+    "data": {
+        "totalRecords": 1,
+        "entries": [
+            {
+                "id": "5cd1964d-29f5-43d6-913b-821b9f14b7a9",
+                "speechDate": "2001-12-13",
+                ... other details ...
+            }
+        ]
+    }
+}
+```
+
+Here are the rules for the search API:
+
+- Currently, can only use the following search parameters:
+  - `authors`: search for speeches whose authors' names might contain the given characters. This is a case-insensitive search and is punctuation-aware. Multiple values within one search parameter indicate to search speeches that might contain any of the indicated characters. Multiple values must be separated by `|` character. Examples:
+    - `?authors=val` will retrieve a speech authored by `Val Kilmer` and another one authored by `The Oval Office`
+    - `?authors=val|tom` will include all the results from the previous bullet point plus speeches authored by `Atom Ant`
+    - A speech authored by `Arthur C. Clarke` will be found by a query `?authors=arthur c. clarke` but not by `?authors=arthur c clarke`
+  - `keywords`: search for speeches whose keywords might contain the given characters. The search rules are the same as for `authors` but this search looks at the speech's `keywords` section
+  - `snippetsOfTexts`: search for speeches whose speech data might contain the given characters. The search rules are the same as for `authors` but this search looks at the speech's `speechText` section
+- d
+
 ## Challenges Encountered and Solutions/Workarounds Provided (If Any)
 
 ## Other General Limitations
