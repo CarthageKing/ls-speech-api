@@ -167,13 +167,21 @@ Example Successful Response:
 Here are the rules for the search API:
 
 - Currently, can only use the following search parameters:
-  - `authors`: search for speeches whose authors' names might contain the given characters. This is a case-insensitive search and is punctuation-aware. Multiple values within one search parameter indicate to search speeches that might contain any of the indicated characters. Multiple values must be separated by `|` character. Examples:
+  - `authors`: search for speeches whose authors' names might contain the given character sequence. This is a case-insensitive search and is punctuation-aware. Multiple values within one search parameter indicate to search speeches that might contain any of the indicated character sequences. Multiple values must be separated by `|` character. Examples:
     - `?authors=val` will retrieve a speech authored by `Val Kilmer` and another one authored by `The Oval Office`
     - `?authors=val|tom` will include all the results from the previous bullet point plus speeches authored by `Atom Ant`
     - A speech authored by `Arthur C. Clarke` will be found by a query `?authors=arthur c. clarke` but not by `?authors=arthur c clarke`
-  - `keywords`: search for speeches whose keywords might contain the given characters. The search rules are the same as for `authors` but this search looks at the speech's `keywords` section
-  - `snippetsOfTexts`: search for speeches whose speech data might contain the given characters. The search rules are the same as for `authors` but this search looks at the speech's `speechText` section
-- d
+  - `keywords`: search for speeches whose keywords might contain the given character sequence. The search rules are the same as for `authors` but this search looks at the speech's `keywords` section
+  - `snippetsOfTexts`: search for speeches whose speech data might contain the given character sequence. The search rules are the same as for `authors` but this search looks at the speech's `speechText` section
+  - `dateRangeFrom`: if provided, then retrieves only records whose `speechDate` property is greater than or equal to the given range
+  - `dateRangeTo`: if provided, then retrieves only records whose `speechDate` property is less than or equal to the given range
+- If both `dateRangeFrom` and `dateRangeTo` are provided, then a check is made to ensure that `dateRangeFrom <= dateRangeTo`. Otherwise an exception is thrown and a HTTP Bad Request is sent back to the caller of the API
+- It is currently not possible to specify multiple instances of the same parameter in order to perform an **AND** search. For example, it is currently not possible to search for speeches authored by both `nelson` and `vedel` since that would require to formulate the query to `?authors=nelson&authors=vedel`, which is not supported
+
+Example using all the search parameters:
+```sh
+curl --location 'http://localhost:9091/speeches/_search?dateRangeFrom=2000-01-01&dateRangeTo=2003-01-01&authors=journal&keywords=dog&snippetsOfTexts=jumps%7cquick'
+```
 
 ## Challenges Encountered and Solutions/Workarounds Provided (If Any)
 
