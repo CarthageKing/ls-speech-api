@@ -35,6 +35,8 @@ Below next sections describe each API. For illustration purposes, the example re
 
 ### Create Speech API
 
+Create a speech record. All the properties except ID has the be provided.
+
 Request:
 ```sh
 curl --location 'http://localhost:9091/speeches/o' \
@@ -56,9 +58,30 @@ Example Successful Response:
     "data": {
         "id": "fdbde203-1e09-4f49-b2fd-58d6726f1d2b",
         "speechDate": "2011-12-13",
-        "authors": ["Boston Journal", "Linda Johnson"],
-        "keywords": ["fox", "lazy dog"],
-        "speechText": "The quick brown fox jumps over the lazy dog."
+        ... other details ...
+    }
+}
+```
+
+### Get A Speech By ID
+
+Gets the speech record identified by the given ID.
+
+Request:
+```sh
+curl --location 'http://localhost:9091/speeches/o/fdbde203-1e09-4f49-b2fd-58d6726f1d2b'
+```
+Example Successful Response:
+```json
+{
+    "header": {
+        "statusCode": "200",
+        "statusMessage": "Operation successful"
+    },
+    "data": {
+        "id": "fdbde203-1e09-4f49-b2fd-58d6726f1d2b",
+        "speechDate": "2011-12-13",
+        ... other details ...
     }
 }
 ```
