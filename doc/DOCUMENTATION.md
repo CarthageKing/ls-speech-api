@@ -190,7 +190,7 @@ curl --location 'http://localhost:9091/speeches/_search?dateRangeFrom=2000-01-01
   - Generation of random foreign key name and no easy way to override it
 - Unfamiliarity with `mapstruct` led to sparse use in the code for just the sipmlest of mappings (i.e. speech to speech entity and vice versa)
 - During requirements gathering, it was mentioned that there was no limit to the lengths of the  author names, keywords and speech data. Initially, this was modeled as `clob` columns in H2. However, issues encountered in using these columns arose which resulted in the current implementation imposing a limit to the lengths of these columns in such a way that Hibernate wouldn't convert them to `clob` columns. The issues were:
-  - Cannot do a `lower()` function against the `clob` columns, necessary for doing the case-isensitive search
+  - Cannot do a `lower()` function against the `clob` columns, necessary for doing the case-insensitive search
   - Cannot make `clob` columns part of the primary key
 
 ## Other General Limitations
