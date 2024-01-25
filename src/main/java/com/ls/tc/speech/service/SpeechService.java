@@ -20,6 +20,7 @@ import com.ls.tc.speech.dao.entity.SpeechEntity;
 import com.ls.tc.speech.dao.entity.SpeechKeywordEntity;
 import com.ls.tc.speech.dao.entity.SpeechKeywordEntity.SpeechKeywordEntityPK;
 import com.ls.tc.speech.exception.SpeechAppRecordNotFoundException;
+import com.ls.tc.speech.util.SpeechSpeechEntityMapper;
 
 import jakarta.annotation.Resource;
 import jakarta.transaction.Transactional;
@@ -68,14 +69,16 @@ public class SpeechService {
 	}
 
 	private void mapToSpeechEntity(Speech speech, SpeechEntity spEnt) {
-		spEnt.setSpeechDate(Date.valueOf(speech.getSpeechDate().toString()));
-		spEnt.setSpeechText(speech.getSpeechText());
+		SpeechEntity e = SpeechSpeechEntityMapper.INSTANCE.speechToSpeechEntity(speech);
+		spEnt.setSpeechDate(e.getSpeechDate());
+		spEnt.setSpeechText(e.getSpeechText());
 	}
 
 	private void mapToSpeech(SpeechEntity spEnt, Speech speech) {
-		speech.setId(spEnt.getId());
-		speech.setSpeechDate(spEnt.getSpeechDate().toLocalDate());
-		speech.setSpeechText(spEnt.getSpeechText());
+		Speech s = SpeechSpeechEntityMapper.INSTANCE.speechEntityToSpeech(spEnt);
+		speech.setId(s.getId());
+		speech.setSpeechDate(s.getSpeechDate());
+		speech.setSpeechText(s.getSpeechText());
 	}
 
 	private SpeechAuthorEntity createSpeechAuthorEntityFrom(String id, String author) {
