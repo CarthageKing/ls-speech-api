@@ -200,7 +200,7 @@ public class SpeechService {
 	}
 
 	public ListResponseContainer<Speech> searchSpeech(String authors, String dateRangeFrom, String dateRangeTo, String keywords, String snippetsOfTexts) {
-		List<String> idsLst = speechSearchDao.getIdsMatchingCriteria();
+		List<String> idsLst = speechSearchDao.getIdsMatchingCriteria(authors, dateRangeFrom, dateRangeTo, keywords, snippetsOfTexts);
 		ListResponseContainer<Speech> result = new ListResponseContainer<>();
 		for (String speechId : idsLst) {
 			result.getEntries().add(getSpeechById(speechId));

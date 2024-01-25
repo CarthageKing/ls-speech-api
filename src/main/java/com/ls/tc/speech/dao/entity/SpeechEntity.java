@@ -25,7 +25,7 @@ public class SpeechEntity implements java.io.Serializable {
 	@Column(name = "s_speech_date", nullable = false)
 	private Date speechDate;
 
-	@Column(name = "s_speech_text", nullable = false, length = Integer.MAX_VALUE)
+	@Column(name = "s_speech_text", nullable = false, length = SpeechAppConstants.SPEECH_TEXT_MAX_LENGTH)
 	private String speechText;
 
 	public SpeechEntity() {

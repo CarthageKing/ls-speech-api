@@ -24,6 +24,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.ls.tc.speech.config.CommonConfig;
@@ -33,6 +35,9 @@ import com.ls.tc.speech.controller.model.CreateGetUpdateDeleteOneSpeechResponse;
 import com.ls.tc.speech.controller.model.GenericResponse;
 import com.ls.tc.speech.controller.model.SearchSpeechResponse;
 import com.ls.tc.speech.controller.model.Speech;
+import com.ls.tc.speech.service.DbHelper;
+
+import jakarta.annotation.Resource;
 
 @ContextConfiguration(classes = { TestSpringConfig.class, CommonConfig.class, TestDbConfig.class })
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
@@ -48,6 +53,9 @@ class SpeechControllerTest {
 
 	@LocalServerPort
 	private int port;
+
+	@Resource
+	private DbHelper dbHelper;
 
 	private String baseUrl;
 
@@ -66,6 +74,7 @@ class SpeechControllerTest {
 	@BeforeEach
 	void setUp() throws Exception {
 		baseUrl = "http://localhost:" + port;
+		dbHelper.truncateAllData();
 	}
 
 	@AfterEach
@@ -276,6 +285,156 @@ class SpeechControllerTest {
 		}
 
 		Assertions.assertEquals(1, countSpeechRecords());
+	}
+
+	@Test
+	void test_Search() throws Exception {
+		{
+			SearchSpeechResponse rspObj = searchSpeechByGet(baseUrl + "/speeches/_search");
+			Assertions.assertEquals(0, rspObj.getData().getTotalRecords());
+			Assertions.assertEquals(0, rspObj.getData().getEntries().size());
+		}
+
+		// create some speeches
+		Speech sp01 = createSpeech(LocalDate.of(2011, 12, 13),
+			// authors
+			Arrays.asList("Arnold Schwarzenegger", "Kevin Sorbo"),
+			// keywords
+			Arrays.asList("Famous HERCULES stArs", "Live Action", "Muscles"),
+			"Hercules is the embodiment of peak physical strength. Also, note to editor, please update this speech.");
+		Speech sp02 = createSpeech(LocalDate.of(2015, 3, 24),
+			Arrays.asList("Vin Diesel", "Dwayne Johnson", "Paul Walker"),
+			Arrays.asList("RACE cars", "TOYOTA SUPRA", "Nitro", "Muscle car"),
+			"The FAST AND THE FURIOUS movie series now spans more than 5 movies including spin-offs. The most famous quote is, \"I'll be back.\" No, that's the wrong movie.");
+		Speech sp03 = createSpeech(LocalDate.of(2003, 6, 7),
+			Arrays.asList("Christopher Walken"),
+			Arrays.asList("Hollywood STARDOM", "Unique actor"),
+			"Back home, I do the same things every day. Exactly the same. I eat at the same time, I get up at the same time, I do the same things in the same order. I read. I have coffee. Then I study my scripts, I exercise on the treadmill, I make myself a little something to eat. I am a great believer in the Mediterranean diet.");
+
+		// search (no filter criteria provided)
+		{
+			SearchSpeechResponse rspObj = searchSpeechByGet(baseUrl + "/speeches/_search");
+			Assertions.assertEquals(3, rspObj.getData().getTotalRecords());
+			Assertions.assertEquals(3, rspObj.getData().getEntries().size());
+			// check the order of the records
+			Assertions.assertEquals(sp03.getId(), rspObj.getData().getEntries().get(0).getId());
+			Assertions.assertEquals(sp01.getId(), rspObj.getData().getEntries().get(1).getId());
+			Assertions.assertEquals(sp02.getId(), rspObj.getData().getEntries().get(2).getId());
+		}
+
+		// search on a single author
+		{
+			SearchSpeechResponse rspObj = searchSpeechByGet(baseUrl + "/speeches/_search?authors=SCHWARZENEGGER");
+			Assertions.assertEquals(1, rspObj.getData().getTotalRecords());
+			Assertions.assertEquals(1, rspObj.getData().getEntries().size());
+			Assertions.assertEquals(sp01.getId(), rspObj.getData().getEntries().get(0).getId());
+		}
+		// search on any of the provided authors
+		{
+			SearchSpeechResponse rspObj = searchSpeechByGet(baseUrl + "/speeches/_search?authors=vin|walk");
+			Assertions.assertEquals(3, rspObj.getData().getTotalRecords());
+			Assertions.assertEquals(3, rspObj.getData().getEntries().size());
+			// check the order of the records
+			// this matches sp01 since it contains an author who has the word 'vin' i.e. Kevin Sorbo
+			// this matches sp02 since it contains authors who contains either the words 'vin' or 'walk' i.e. Paul Walker and Vin Diesel
+			// this matches sp03 since it contains an author who has the word 'walk' i.e. Christopher Walken
+			Assertions.assertEquals(sp03.getId(), rspObj.getData().getEntries().get(0).getId());
+			Assertions.assertEquals(sp01.getId(), rspObj.getData().getEntries().get(1).getId());
+			Assertions.assertEquals(sp02.getId(), rspObj.getData().getEntries().get(2).getId());
+		}
+
+		// search on a single keyword
+		{
+			SearchSpeechResponse rspObj = searchSpeechByGet(baseUrl + "/speeches/_search?keywords=AcT");
+			Assertions.assertEquals(2, rspObj.getData().getTotalRecords());
+			Assertions.assertEquals(2, rspObj.getData().getEntries().size());
+			// check the order of the records
+			// this matches sp01 since it contains a keyword who has the word 'act' i.e. Live Action
+			// this matches sp03 since it contains a keyword who has the word 'act' i.e. Unique actor
+			Assertions.assertEquals(sp03.getId(), rspObj.getData().getEntries().get(0).getId());
+			Assertions.assertEquals(sp01.getId(), rspObj.getData().getEntries().get(1).getId());
+		}
+		// search on any of the provided keywords
+		{
+			SearchSpeechResponse rspObj = searchSpeechByGet(baseUrl + "/speeches/_search?keywords=AcT|mUscles");
+			Assertions.assertEquals(2, rspObj.getData().getTotalRecords());
+			Assertions.assertEquals(2, rspObj.getData().getEntries().size());
+			// check the order of the records
+			// this matches sp01 since it contains a keyword who has the word 'act' i.e. Live Action
+			// this matches sp03 since it contains a keyword who has the word 'act' i.e. Unique actor
+			// this does not include sp02 since it only has a keyword that has 'muscle' and not 'muscles'
+			Assertions.assertEquals(sp03.getId(), rspObj.getData().getEntries().get(0).getId());
+			Assertions.assertEquals(sp01.getId(), rspObj.getData().getEntries().get(1).getId());
+		}
+		{
+			SearchSpeechResponse rspObj = searchSpeechByGet(baseUrl + "/speeches/_search?keywords=AcT|mUscle");
+			Assertions.assertEquals(3, rspObj.getData().getTotalRecords());
+			Assertions.assertEquals(3, rspObj.getData().getEntries().size());
+			// check the order of the records
+			// since we updated the search query to only use 'muscle', then sp02 gets included
+			Assertions.assertEquals(sp03.getId(), rspObj.getData().getEntries().get(0).getId());
+			Assertions.assertEquals(sp01.getId(), rspObj.getData().getEntries().get(1).getId());
+			Assertions.assertEquals(sp02.getId(), rspObj.getData().getEntries().get(2).getId());
+		}
+
+		// search on a single speech snippet
+		{
+			SearchSpeechResponse rspObj = searchSpeechByGet(baseUrl + "/speeches/_search?snippetsOfTexts=i'll be back");
+			Assertions.assertEquals(1, rspObj.getData().getTotalRecords());
+			Assertions.assertEquals(1, rspObj.getData().getEntries().size());
+			// sp02 is the only record with this snippet
+			Assertions.assertEquals(sp02.getId(), rspObj.getData().getEntries().get(0).getId());
+		}
+		// search on any of the provided speech snippets
+		{
+			SearchSpeechResponse rspObj = searchSpeechByGet(baseUrl + "/speeches/_search?snippetsOfTexts=i'll be book|bacK");
+			Assertions.assertEquals(2, rspObj.getData().getTotalRecords());
+			Assertions.assertEquals(2, rspObj.getData().getEntries().size());
+			// sp02 and sp03 get included because of 'back'
+			Assertions.assertEquals(sp03.getId(), rspObj.getData().getEntries().get(0).getId());
+			Assertions.assertEquals(sp02.getId(), rspObj.getData().getEntries().get(1).getId());
+		}
+
+		// get records with speech date matching from
+		{
+			SearchSpeechResponse rspObj = searchSpeechByGet(baseUrl + "/speeches/_search?dateRangeFrom=2005-01-01");
+			Assertions.assertEquals(2, rspObj.getData().getTotalRecords());
+			Assertions.assertEquals(2, rspObj.getData().getEntries().size());
+			// only sp01 and sp03 had a speech date beyond beyond 2005
+			Assertions.assertEquals(sp01.getId(), rspObj.getData().getEntries().get(0).getId());
+			Assertions.assertEquals(sp02.getId(), rspObj.getData().getEntries().get(1).getId());
+		}
+		// get records with speech date before given end date
+		{
+			SearchSpeechResponse rspObj = searchSpeechByGet(baseUrl + "/speeches/_search?dateRangeTo=2013-01-01");
+			Assertions.assertEquals(2, rspObj.getData().getTotalRecords());
+			Assertions.assertEquals(2, rspObj.getData().getEntries().size());
+			// only sp01 and sp03 had a speech date within the given range
+			Assertions.assertEquals(sp03.getId(), rspObj.getData().getEntries().get(0).getId());
+			Assertions.assertEquals(sp01.getId(), rspObj.getData().getEntries().get(1).getId());
+		}
+
+		// combo search!
+		{
+			SearchSpeechResponse rspObj = searchSpeechByGet(baseUrl + "/speeches/_search?dateRangeFrom=2005-01-01&dateRangeTo=2013-01-01&authors=Kevin Sorbo|ArNOLD&keywords=muscles|FAMous&snippetsOfTexts=is the embodiment|note to editor, please");
+			Assertions.assertEquals(1, rspObj.getData().getTotalRecords());
+			Assertions.assertEquals(1, rspObj.getData().getEntries().size());
+			// only sp01 matches all the criteria
+			Assertions.assertEquals(sp01.getId(), rspObj.getData().getEntries().get(0).getId());
+		}
+	}
+
+	private SearchSpeechResponse searchSpeechByGet(String requestUriStr) throws JsonProcessingException, JsonMappingException {
+		String content = null;
+		LOG.trace("the request: {}", content);
+		HttpHeaders hdrs = new HttpHeaders();
+		hdrs.set(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
+		HttpEntity<String> httpReq = new HttpEntity<String>(content, hdrs);
+		ResponseEntity<String> httpRsp = restTemplate.exchange(requestUriStr, HttpMethod.GET, httpReq, String.class);
+		LOG.trace("the response: {}", httpRsp.getBody());
+		Assertions.assertEquals(HttpStatus.OK, httpRsp.getStatusCode());
+		SearchSpeechResponse rspObj = OBJECT_MAPPER.readValue(httpRsp.getBody(), SearchSpeechResponse.class);
+		return rspObj;
 	}
 
 	private int countSpeechRecords() throws Exception {

@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import com.ls.tc.speech.dao.SpeechEntityDao;
 import com.ls.tc.speech.dao.entity.SpeechEntity;
+import com.ls.tc.speech.service.DbHelper;
 
 @Configuration
 @EnableJpaRepositories(basePackageClasses = { SpeechEntityDao.class })
@@ -37,5 +38,10 @@ public class TestDbConfig {
 			// tests
 			.generateUniqueName(true)
 			.build();
+	}
+
+	@Bean
+	DbHelper dbHelper() {
+		return new DbHelper();
 	}
 }
