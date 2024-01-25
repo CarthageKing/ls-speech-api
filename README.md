@@ -6,7 +6,7 @@ This is an example application coded to meet the requirements for one of LS comp
 
 ## Prerequisites
 
-This application requires **Java 17** to build and run. Before doing anything else, ensure you have the recommended version of Java JDK installed. It requires that version of Java since the application is built using Spring Boot 3.1.x, which at the minimum requires Java 17 to build and run. For more information, please refer to [here](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Release-Notes#java-17-baseline-and-java-19-support).
+This application requires at least **Java 17** to build and run. Before doing anything else, ensure you have the recommended version of Java JDK installed. It requires that version of Java since the application is built using Spring Boot 3.1.x, which at the minimum requires Java 17 to build and run. For more information, please refer to [here](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Release-Notes#java-17-baseline-and-java-19-support).
 
 ## Building The Application
 
