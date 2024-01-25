@@ -19,6 +19,7 @@
 
 
 		<maven.compiler.plugin.version>3.12.1</maven.compiler.plugin.version>
+		<maven.assembly.plugin.version>3.6.0</maven.assembly.plugin.version>
 		<jacoco.maven.plugin.version>0.8.11</jacoco.maven.plugin.version>
 		<maven.surefire.plugin.version>3.2.3</maven.surefire.plugin.version>
 		<maven.surefire.report.plugin.version>3.2.3</maven.surefire.report.plugin.version>
@@ -140,6 +141,12 @@
 					<version>${jacoco.maven.plugin.version}</version>
 				</plugin>
 
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-assembly-plugin</artifactId>
+					<version>${maven.assembly.plugin.version}</version>
+				</plugin>
+
 				<!--This plugin's configuration is used to store Eclipse m2e settings only. It has no influence on the Maven build itself.-->
 				<plugin>
 					<groupId>org.eclipse.m2e</groupId>
@@ -200,6 +207,25 @@
 								-->
 							<goal>build-info</goal>
 							<goal>repackage</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-assembly-plugin</artifactId>
+				<configuration>
+					<descriptors>
+						<descriptor>src/assemble_zip_dist.xml</descriptor>
+					</descriptors>
+				</configuration>
+				<executions>
+					<execution>
+						<id>make-assembly</id>
+						<phase>package</phase>
+						<goals>
+							<goal>single</goal>
 						</goals>
 					</execution>
 				</executions>
